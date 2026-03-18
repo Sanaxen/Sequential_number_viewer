@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SEQ VIEWER</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0e11;
+    --panel: #13151a;
+    --border: #2a2d35;
+    --accent: #e8ff47;
+    --accent2: #47c4ff;
+    --danger: #ff5047;
+    --text: #d4d8e0;
+    --muted: #5a5f70;
+    --mono: 'Share Tech Mono', monospace;
+    --sans: 'Barlow Condensed', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    overflow: hidden;
+  }
+
+  #app {
+    display: grid;
+    grid-template-rows: 46px 1fr 180px;
+    height: 100vh;
+    gap: 0;
+  }
+
+  /* ── TOPBAR ── */
+  #topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+
+  .logo {
+    font-family: var(--mono);
+    font-size: 16px;
+    letter-spacing: 4px;
+    color: var(--accent);
+    white-space: nowrap;
+    text-shadow: 0 0 20px rgba(232,255,71,0.4);
+  }
+
+  .sep { width: 1px; height: 24px; background: var(--border); }
+
+  #dir-input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 6px 10px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  #dir-input:focus { border-color: var(--accent); }
+  #dir-input::placeholder { color: var(--muted); }
+
+  .btn {
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary { border-color: var(--accent); color: var(--accent); }
+  .btn.primary:hover { background: var(--accent); color: var(--bg); }
+  .btn.danger { border-color: var(--danger); color: var(--danger); }
+  .btn.danger:hover { background: var(--danger); color: var(--bg); }
+  .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* ── VIEWER ── */
+  #viewer {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: #080909;
+  }
+
+  #canvas-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #main-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: none;
+    image-rendering: auto;
+  }
+
+  #placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    color: var(--muted);
+  }
+
+  .placeholder-icon {
+    font-size: 64px;
+    opacity: 0.3;
+    font-family: var(--mono);
+    letter-spacing: -4px;
+  }
+
+  .placeholder-text {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 2px;
+  }
+
+  /* HUD overlay */
+  #hud {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: rgba(232,255,71,0.8);
+    background: rgba(0,0,0,0.6);
+    padding: 6px 10px;
+    pointer-events: none;
+    line-height: 1.8;
+    backdrop-filter: blur(4px);
+    display: none;
+  }
+
+  /* Live indicator */
+  #live-dot {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: none;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--accent2);
+    background: rgba(0,0,0,0.6);
+    padding: 4px 8px;
+    backdrop-filter: blur(4px);
+  }
+  #live-dot.active { display: flex; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent2);
+    animation: pulse 1.5s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  /* ── CONTROLS PANEL ── */
+  #controls {
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    display: grid;
+    grid-template-rows: 1fr 1fr 1fr;
+    gap: 0;
+    padding: 0;
+  }
+
+  .ctrl-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ctrl-row:last-child { border-bottom: none; }
+
+  /* Slider row */
+  #slider-row { gap: 12px; }
+
+  #frame-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    min-width: 80px;
+  }
+
+  #frame-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 3px;
+    background: var(--border);
+    outline: none;
+    cursor: pointer;
+  }
+  #frame-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 0;
+    background: var(--accent);
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+  #frame-slider::-webkit-slider-thumb:hover { transform: scale(1.3); }
+  #frame-slider::-moz-range-thumb {
+    width: 14px; height: 14px;
+    border-radius: 0;
+    background: var(--accent);
+    border: none;
+    cursor: pointer;
+  }
+
+  #frame-num-display {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    min-width: 90px;
+    text-align: right;
+  }
+
+  /* Playback row */
+  #play-row { gap: 8px; }
+
+  .ctrl-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .btn-icon {
+    width: 34px; height: 30px;
+    font-size: 14px;
+    padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: var(--mono);
+  }
+  .btn-icon:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-icon.active { border-color: var(--accent); background: var(--accent); color: var(--bg); }
+  .btn-icon:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  #fps-input {
+    width: 50px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 4px 6px;
+    text-align: center;
+    outline: none;
+  }
+  #fps-input:focus { border-color: var(--accent); }
+
+  .divider-v { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+
+  /* Status bar row */
+  #status-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 16px;
+  }
+
+  #status-msg {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    flex: 1;
+  }
+  #status-msg.error { color: var(--danger); }
+  #status-msg.ok { color: var(--accent2); }
+
+  /* Video convert panel */
+  #convert-panel {
+    display: none;
+    align-items: center;
+    gap: 10px;
+  }
+  #convert-panel.visible { display: flex; }
+
+  #output-name-input, #convert-fps-input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 8px;
+    outline: none;
+  }
+  #output-name-input { width: 140px; }
+  #convert-fps-input { width: 50px; text-align: center; color: var(--accent); }
+  #output-name-input:focus, #convert-fps-input:focus { border-color: var(--accent); }
+
+  select.ctrl-select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 8px;
+    outline: none;
+    cursor: pointer;
+  }
+  select.ctrl-select:focus { border-color: var(--accent); }
+
+  /* Progress bar */
+  #progress-bar-wrap {
+    display: none;
+    position: absolute;
+    bottom: 0;
+    left: 0; right: 0;
+    height: 2px;
+    background: var(--border);
+  }
+  #progress-bar {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.1s;
+  }
+
+  /* Notifications */
+  #notif {
+    position: absolute;
+    top: 50px;
+    right: 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 8px 14px;
+    border-left: 3px solid var(--accent2);
+    background: rgba(13,14,17,0.95);
+    color: var(--text);
+    display: none;
+    backdrop-filter: blur(4px);
+    max-width: 300px;
+    z-index: 100;
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- TOP BAR -->
+  <div id="topbar">
+    <span class="logo">SEQ</span>
+    <div class="sep"></div>
+    <input id="dir-input" type="text" placeholder="画像ディレクトリのパスを入力...">
+    <button class="btn primary" id="btn-load">LOAD</button>
+    <div class="sep"></div>
+    <button class="btn" id="btn-convert-toggle">VIDEO</button>
+  </div>
+
+  <!-- VIEWER -->
+  <div id="viewer">
+    <div id="canvas-container">
+      <img id="main-img" alt="frame">
+      <div id="placeholder">
+        <div class="placeholder-icon">▤▤▤</div>
+        <div class="placeholder-text">LOAD A DIRECTORY TO BEGIN</div>
+      </div>
+    </div>
+    <div id="hud"></div>
+    <div id="live-dot"><div class="dot"></div>LIVE</div>
+    <div id="notif"></div>
+  </div>
+
+  <!-- CONTROLS -->
+  <div id="controls">
+
+    <!-- Row 1: Slider -->
+    <div class="ctrl-row" id="slider-row">
+      <span class="ctrl-label">FRAME</span>
+      <span id="frame-label">— / —</span>
+      <input type="range" id="frame-slider" min="0" max="0" value="0" disabled>
+      <span id="frame-num-display">—</span>
+    </div>
+
+    <!-- Row 2: Playback -->
+    <div class="ctrl-row" id="play-row">
+      <span class="ctrl-label">PLAY</span>
+      <button class="btn-icon" id="btn-first" title="先頭" disabled>⏮</button>
+      <button class="btn-icon" id="btn-prev" title="前のコマ" disabled>◀</button>
+      <button class="btn-icon" id="btn-play" title="再生/停止" disabled>▶</button>
+      <button class="btn-icon" id="btn-next" title="次のコマ" disabled>▶</button>
+      <button class="btn-icon" id="btn-last" title="最後" disabled>⏭</button>
+      <div class="divider-v"></div>
+      <span class="ctrl-label">FPS</span>
+      <input type="number" id="fps-input" value="12" min="1" max="120">
+      <div class="divider-v"></div>
+      <span class="ctrl-label">LOOP</span>
+      <button class="btn-icon" id="btn-loop" title="ループ">∞</button>
+      <div class="divider-v"></div>
+      <!-- Convert panel inline -->
+      <div id="convert-panel">
+        <span class="ctrl-label">OUT</span>
+        <input type="text" id="output-name-input" placeholder="output_filename">
+        <select class="ctrl-select" id="fmt-select">
+          <option value="mp4">MP4</option>
+          <option value="gif">GIF</option>
+          <option value="webm">WEBM</option>
+        </select>
+        <span class="ctrl-label">FPS</span>
+        <input type="number" id="convert-fps-input" value="24" min="1" max="60">
+        <button class="btn primary" id="btn-do-convert" disabled>CONVERT</button>
+      </div>
+    </div>
+
+    <!-- Row 3: Status -->
+    <div class="ctrl-row" id="status-row">
+      <span id="status-msg">Ready.</span>
+      <div id="progress-bar-wrap">
+        <div id="progress-bar"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────
+const state = {
+  directory: '',
+  files: [],
+  currentIndex: 0,
+  playing: false,
+  looping: true,
+  fps: 12,
+  timer: null,
+  refreshTimer: null,
+  mtimes: {},
+  loaded: false
+};
+
+// ── DOM refs ──────────────────────────────────────────────────
+const dirInput = document.getElementById('dir-input');
+const btnLoad = document.getElementById('btn-load');
+const mainImg = document.getElementById('main-img');
+const placeholder = document.getElementById('placeholder');
+const hud = document.getElementById('hud');
+const liveDot = document.getElementById('live-dot');
+const frameSlider = document.getElementById('frame-slider');
+const frameLabel = document.getElementById('frame-label');
+const frameNumDisplay = document.getElementById('frame-num-display');
+const btnFirst = document.getElementById('btn-first');
+const btnPrev = document.getElementById('btn-prev');
+const btnPlay = document.getElementById('btn-play');
+const btnNext = document.getElementById('btn-next');
+const btnLast = document.getElementById('btn-last');
+const btnLoop = document.getElementById('btn-loop');
+const fpsInput = document.getElementById('fps-input');
+const statusMsg = document.getElementById('status-msg');
+const btnConvertToggle = document.getElementById('btn-convert-toggle');
+const convertPanel = document.getElementById('convert-panel');
+const outputNameInput = document.getElementById('output-name-input');
+const fmtSelect = document.getElementById('fmt-select');
+const convertFpsInput = document.getElementById('convert-fps-input');
+const btnDoConvert = document.getElementById('btn-do-convert');
+const notif = document.getElementById('notif');
+
+// ── Helpers ────────────────────────────────────────────────────
+function setStatus(msg, type = '') {
+  statusMsg.textContent = msg;
+  statusMsg.className = type ? `${type}` : '';
+}
+
+let notifTimeout;
+function showNotif(msg) {
+  notif.textContent = msg;
+  notif.style.display = 'block';
+  clearTimeout(notifTimeout);
+  notifTimeout = setTimeout(() => { notif.style.display = 'none'; }, 3000);
+}
+
+function padNum(n, len) {
+  return String(n).padStart(len, '0');
+}
+
+// ── Display ────────────────────────────────────────────────────
+function showFrame(index) {
+  if (!state.files.length) return;
+  index = Math.max(0, Math.min(index, state.files.length - 1));
+  state.currentIndex = index;
+
+  const file = state.files[index];
+  const ts = Date.now(); // cache bust for live updates
+  mainImg.src = `/api/image?path=${encodeURIComponent(file.path)}&t=${ts}`;
+  mainImg.style.display = 'block';
+  placeholder.style.display = 'none';
+
+  frameSlider.value = index;
+  frameLabel.textContent = `${index + 1} / ${state.files.length}`;
+  frameNumDisplay.textContent = `#${file.num}`;
+
+  // HUD
+  const fname = file.filename || '';
+  hud.style.display = 'block';
+  hud.innerHTML = `FILE  ${fname}<br>IDX   ${index + 1} / ${state.files.length}<br>NUM   ${file.num}`;
+}
+
+function updateControls() {
+  const has = state.files.length > 0;
+  frameSlider.disabled = !has;
+  btnFirst.disabled = !has;
+  btnPrev.disabled = !has;
+  btnPlay.disabled = !has;
+  btnNext.disabled = !has;
+  btnLast.disabled = !has;
+  btnDoConvert.disabled = !has;
+  if (has) {
+    frameSlider.max = state.files.length - 1;
+  }
+}
+
+// ── Load ───────────────────────────────────────────────────────
+async function loadDirectory() {
+  const dir = dirInput.value.trim();
+  if (!dir) { setStatus('ディレクトリを入力してください', 'error'); return; }
+
+  setStatus('スキャン中...');
+  stopPlayback();
+
+  try {
+    const res = await fetch('/api/scan', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({directory: dir})
+    });
+    const data = await res.json();
+
+    if (data.error) { setStatus(data.error, 'error'); return; }
+
+    state.directory = dir;
+    state.files = data.files;
+    state.currentIndex = 0;
+    state.mtimes = Object.fromEntries(data.files.map(f => [f.filename, f.mtime]));
+    state.loaded = true;
+
+    frameSlider.max = data.files.length - 1;
+    frameSlider.value = 0;
+    updateControls();
+    showFrame(0);
+
+    setStatus(`Loaded: ${data.files.length} frames — prefix "${data.prefix}"`, 'ok');
+
+    // Start live refresh
+    startLiveRefresh();
+
+    // Set default output name
+    outputNameInput.value = (data.prefix || 'output').replace(/[\W_]+$/, '') || 'output';
+
+  } catch(e) {
+    setStatus('通信エラー: ' + e.message, 'error');
+  }
+}
+
+// ── Playback ───────────────────────────────────────────────────
+function startPlayback() {
+  if (state.playing) return;
+  state.playing = true;
+  btnPlay.classList.add('active');
+  btnPlay.textContent = '⏸';
+
+  function tick() {
+    if (!state.playing) return;
+    let next = state.currentIndex + 1;
+    if (next >= state.files.length) {
+      if (state.looping) next = 0;
+      else { stopPlayback(); return; }
+    }
+    showFrame(next);
+    state.timer = setTimeout(tick, 1000 / state.fps);
+  }
+  state.timer = setTimeout(tick, 1000 / state.fps);
+}
+
+function stopPlayback() {
+  state.playing = false;
+  btnPlay.classList.remove('active');
+  btnPlay.textContent = '▶';
+  if (state.timer) { clearTimeout(state.timer); state.timer = null; }
+}
+
+function togglePlayback() {
+  if (state.playing) stopPlayback();
+  else startPlayback();
+}
+
+// ── Live Refresh ───────────────────────────────────────────────
+function startLiveRefresh() {
+  if (state.refreshTimer) clearInterval(state.refreshTimer);
+  liveDot.classList.add('active');
+  state.refreshTimer = setInterval(async () => {
+    if (!state.directory) return;
+    try {
+      const res = await fetch('/api/refresh', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({directory: state.directory, mtimes: state.mtimes})
+      });
+      const data = await res.json();
+      if (data.error || !data.changed) return;
+
+      const wasPlaying = state.playing;
+      const prevIndex = state.currentIndex;
+      const prevTotal = state.files.length;
+
+      state.files = data.files;
+      state.mtimes = Object.fromEntries(data.files.map(f => [f.filename, f.mtime]));
+      frameSlider.max = data.files.length - 1;
+      updateControls();
+
+      const newTotal = data.files.length;
+      if (newTotal !== prevTotal) {
+        showNotif(`ファイル更新: ${newTotal} フレーム`);
+        setStatus(`${newTotal} frames (updated)`, 'ok');
+      }
+
+      // Keep current position if possible
+      const newIdx = Math.min(prevIndex, newTotal - 1);
+      if (!wasPlaying) showFrame(newIdx);
+
+    } catch(e) { /* ignore network errors during refresh */ }
+  }, 2000);
+}
+
+// ── Events ─────────────────────────────────────────────────────
+btnLoad.addEventListener('click', loadDirectory);
+dirInput.addEventListener('keydown', e => { if (e.key === 'Enter') loadDirectory(); });
+
+frameSlider.addEventListener('input', () => {
+  stopPlayback();
+  showFrame(parseInt(frameSlider.value));
+});
+
+btnFirst.addEventListener('click', () => { stopPlayback(); showFrame(0); });
+btnLast.addEventListener('click', () => { stopPlayback(); showFrame(state.files.length - 1); });
+btnPrev.addEventListener('click', () => {
+  stopPlayback();
+  showFrame(Math.max(0, state.currentIndex - 1));
+});
+btnNext.addEventListener('click', () => {
+  stopPlayback();
+  showFrame(Math.min(state.files.length - 1, state.currentIndex + 1));
+});
+btnPlay.addEventListener('click', togglePlayback);
+
+btnLoop.addEventListener('click', () => {
+  state.looping = !state.looping;
+  btnLoop.classList.toggle('active', state.looping);
+});
+// Default: looping on
+btnLoop.classList.add('active');
+
+fpsInput.addEventListener('change', () => {
+  const v = parseInt(fpsInput.value);
+  if (v >= 1 && v <= 120) {
+    state.fps = v;
+    if (state.playing) { stopPlayback(); startPlayback(); }
+  }
+});
+
+// Keyboard controls
+window.addEventListener('keydown', e => {
+  if (e.target === dirInput || e.target === outputNameInput ||
+      e.target === fpsInput || e.target === convertFpsInput) return;
+
+  switch(e.key) {
+    case 'ArrowLeft': case ',':
+      stopPlayback(); showFrame(Math.max(0, state.currentIndex - 1)); break;
+    case 'ArrowRight': case '.':
+      stopPlayback(); showFrame(Math.min(state.files.length - 1, state.currentIndex + 1)); break;
+    case ' ':
+      e.preventDefault(); togglePlayback(); break;
+    case 'Home':
+      stopPlayback(); showFrame(0); break;
+    case 'End':
+      stopPlayback(); showFrame(state.files.length - 1); break;
+  }
+});
+
+// Video convert toggle
+btnConvertToggle.addEventListener('click', () => {
+  convertPanel.classList.toggle('visible');
+  btnConvertToggle.classList.toggle('primary', convertPanel.classList.contains('visible'));
+});
+
+// Convert
+btnDoConvert.addEventListener('click', async () => {
+  const outputName = outputNameInput.value.trim() || 'output';
+  const fmt = fmtSelect.value;
+  const fps = parseInt(convertFpsInput.value) || 24;
+
+  setStatus(`変換中... (${fmt.toUpperCase()}, ${fps}fps)`, '');
+  btnDoConvert.disabled = true;
+
+  try {
+    const res = await fetch('/api/convert_video', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        directory: state.directory,
+        fps: fps,
+        format: fmt,
+        output_name: outputName
+      })
+    });
+    const data = await res.json();
+    if (data.error) {
+      setStatus('変換エラー: ' + data.error, 'error');
+    } else {
+      setStatus(`変換完了: ${data.output_path}`, 'ok');
+      showNotif(`✓ 出力: ${outputName}.${fmt}`);
+    }
+  } catch(e) {
+    setStatus('通信エラー: ' + e.message, 'error');
+  }
+
+  btnDoConvert.disabled = false;
+});
+
+// Drag & drop directory path
+document.getElementById('viewer').addEventListener('dragover', e => e.preventDefault());
+document.getElementById('viewer').addEventListener('drop', e => {
+  e.preventDefault();
+  const items = e.dataTransfer.items || [];
+  for (let item of items) {
+    if (item.kind === 'string') {
+      item.getAsString(s => {
+        dirInput.value = s.trim();
+        loadDirectory();
+      });
+    }
+  }
+});
+</script>
+</body>
+</html>
