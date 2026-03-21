@@ -71,4 +71,4 @@ elif command -v xdg-open &>/dev/null; then
 fi
 
 # アプリ起動
-python "$APP_DIR/app.py"
+python "$APP_DIR/app.py" &>/dev/null
