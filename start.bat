@@ -65,6 +65,6 @@ echo  終了: Ctrl+C
 echo.
 
 :: アプリ起動
-python "%APP_DIR%app.py"
+python "%APP_DIR%app.py" >nul 2>&1
 
 pause
